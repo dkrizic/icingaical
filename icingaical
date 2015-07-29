@@ -15,10 +15,10 @@ use POSIX;
 # ###################
 
 # process host down
-my $process_host_down = 0;
+my $process_host_down = 1;
 
 # process service down
-my $process_service_down = 0;
+my $process_service_down = 1;
 
 # process host downtimes
 my $process_host_downtimes = 1;
@@ -38,6 +38,8 @@ my $icalendar = "/var/www/downtimes.ics";
 
 sub host_down($) {
 	my $info = shift;
+	return unless $process_host_down;
+	return unless $$info{'current_state'};
 	print ICAL "BEGIN:VEVENT\n";
 	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'last_state_change'}))."\n";
 	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime(time() + 3600))."\n"; # now + 1h
@@ -48,6 +50,8 @@ sub host_down($) {
 
 sub service_down($) {
 	my $info = shift;
+	return unless $process_service_down;
+	return unless $$info{'current_state'} == 2;
 	print ICAL "BEGIN:VEVENT\n";
 	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'last_state_change'}))."\n";
 	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime(time() + 3600))."\n"; # now + 1h
@@ -58,6 +62,7 @@ sub service_down($) {
 
 sub host_downtime($) {
 	my $info = shift;
+	return unless $process_host_downtimes;
 	print ICAL "BEGIN:VEVENT\n";
 	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'start_time'}))."\n";
 	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'end_time'}))."\n";
@@ -68,6 +73,7 @@ sub host_downtime($) {
 
 sub service_downtime($) {
 	my $info = shift;
+	return unless $process_service_downtimes;
 	print ICAL "BEGIN:VEVENT\n";
 	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'start_time'}))."\n";
 	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'end_time'}))."\n";
@@ -113,10 +119,10 @@ while(my $line = <STATUS>) {
 
 		given( $type ) {
 			when(/hoststatus/) { 
-				#host_down(%info);
+				host_down(\%info);
 			}
 			when('servicestatus') { 
-				#service_down(%info);
+				service_down(\%info);
 			}
 			when('hostdowntime') { 
 				host_downtime(\%info);
