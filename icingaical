@@ -4,12 +4,21 @@
 #
 # Written by Darko Krizic <darko.krizic@prodyna.com>
 
+use 5.010;
 use strict;
+#use warnings;
+#use feature qw(switch);
 use POSIX;
 
 # ###################
 # configuration start
 # ###################
+
+# process host down
+my $process_host_down = 0;
+
+# process service down
+my $process_service_down = 0;
 
 # process host downtimes
 my $process_host_downtimes = 1;
@@ -27,12 +36,51 @@ my $icalendar = "/var/www/downtimes.ics";
 # configuration end
 # ###################
 
+sub host_down($) {
+	my $info = shift;
+	print ICAL "BEGIN:VEVENT\n";
+	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'last_state_change'}))."\n";
+	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime(time() + 3600))."\n"; # now + 1h
+	print ICAL "DESCRIPTION:$$info{'plugin_output'}\n";
+	print ICAL "SUMMARY:HD: $$info{'host_name'} down\n";
+	print ICAL "END:VEVENT\n";
+}
+
+sub service_down($) {
+	my $info = shift;
+	print ICAL "BEGIN:VEVENT\n";
+	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'last_state_change'}))."\n";
+	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime(time() + 3600))."\n"; # now + 1h
+	print ICAL "SUMMARY:SD: $$info{'service_description'} on $$info{'host_name'} down\n";
+	print ICAL "DESCRIPTION:$$info{'plugin_output'}\n";
+	print ICAL "END:VEVENT\n";
+}
+
+sub host_downtime($) {
+	my $info = shift;
+	print ICAL "BEGIN:VEVENT\n";
+	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'start_time'}))."\n";
+	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'end_time'}))."\n";
+	print ICAL "SUMMARY:HSD: $$info{'host_name'}\n";
+	print ICAL "DESCRIPTION:Host Scheduled Downtime: $$info{'comment'} ($$info{'author'})\n";
+	print ICAL "END:VEVENT\n";
+}
+
+sub service_downtime($) {
+	my $info = shift;
+	print ICAL "BEGIN:VEVENT\n";
+	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'start_time'}))."\n";
+	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'end_time'}))."\n";
+	print ICAL "SUMMARY:SSD: $$info{'service_description'}\n";
+	print ICAL "DESCRIPTION:Service Scheduled Downtime$$info{'comment'} ($$info{'author'})\n";
+	print ICAL "END:VEVENT\n";
+}
+
 # do not change anything down here
+my %info = ();
 my $debug = 0;
 my $insection = 0;
-my $inhostdowntime = 0;
-my $inservicedowntime = 0;
-my %info = ();
+my $type;
 
 open(ICAL, ">$icalendar");
 print ICAL "BEGIN:VCALENDAR\n";
@@ -44,60 +92,50 @@ while(my $line = <STATUS>) {
 	$line =~ s/^\s+//; # trim start
 	$line =~ s/\s+$//; # trom end
 	next unless $line; # ignore empty lines
-	if( $line =~ /^hostdowntime/ ) { 
-		# we are in a hostdowmtime section
+	if( $line =~ /\{$/ ) {
+		# section start
 		$insection = 1;
-		$inhostdowntime = 1;
-		next;
-	}
-	if( $line =~ /^servicedowntime/ ) { 
-		# we are in a servicedowmtime section
-		$insection = 1;
-		$inservicedowntime = 1;
+		%info = ();
+		$line =~ s/{//;	# remove {
+		$line =~ s/^\s+//; # trim start
+		$line =~ s/\s+$//; # trom end
+		$type = $line;
 		next;
 	}
 	if( $line eq "}" and $insection ) {
-		# check if to create output for this section
-		my $create = 0;
-		$create = 1 if( $inhostdowntime && $process_host_downtimes );
-		$create = 1 if( $inservicedowntime && $process_service_downtimes);
-		next unless $create;
-
-		# section is closed - write VEVENT
-		print ICAL "BEGIN:VEVENT\n";
+		# optional debug
 		if( $debug ) {
+			print "\ntype=$type\n";
 			foreach my $key (keys %info) {
 				print "$key=$info{$key}\n";
 			}	
 		}
-		if( $inhostdowntime ) {
-			# host specific
-			print ICAL "SUMMARY:Scheduled downtime $info{'host_name'}\n";
-			$inhostdowntime = 0;
-		} elsif( $inservicedowntime ) { 
-			# service specific
-			print ICAL "SUMMARY:Scheduled downtime $info{'service_description'} on $info{'host_name'}\n";
-			$inservicedowntime = 0;
 
-		} 
-		# generic rest for section
-		print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($info{'start_time'}))."\n";
-		print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime($info{'end_time'}))."\n";
-		print ICAL "DESCRIPTION:$info{'comment'} ($info{'author'})\n";
-		print ICAL "ORGANIZER: $info{'author'}\n";
-		print ICAL "END:VEVENT\n";
+		given( $type ) {
+			when(/hoststatus/) { 
+				#host_down(%info);
+			}
+			when('servicestatus') { 
+				#service_down(%info);
+			}
+			when('hostdowntime') { 
+				host_downtime(\%info);
+			}
+			when('servicedowntime') {
+				service_downtime(\%info);
+			}
+		}
 
-		# clean stored data for section
+		undef $type;
 		%info = ();
-		$insection = 0;
 		next;
 	}
-	if( $insection ) {
-		# store data if in section
-		my ($key,$value) = split '=',$line;
-		$info{$key} = $value;
-	}
+	my ($key,$value) = split (/=/,$line);	
+	$info{$key} = $value;
 }
+
 close(STATUS);
 print ICAL "END:VCALENDAR\n";
 close(ICAL);
+
+0;
