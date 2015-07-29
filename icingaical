@@ -56,7 +56,13 @@ while(my $line = <STATUS>) {
 		$inservicedowntime = 1;
 		next;
 	}
-	if( $line eq "}" and ($inhostdowntime or $inservicedowntime) ) {
+	if( $line eq "}" and $insection ) {
+		# check if to create output for this section
+		my $create = 0;
+		$create = 1 if( $inhostdowntime && $process_host_downtimes );
+		$create = 1 if( $inservicedowntime && $process_service_downtimes);
+		next unless $create;
+
 		# section is closed - write VEVENT
 		print ICAL "BEGIN:VEVENT\n";
 		if( $debug ) {
