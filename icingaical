@@ -11,6 +11,12 @@ use POSIX;
 # configuration start
 # ###################
 
+# process host downtimes
+my $process_host_downtimes = 1;
+
+# process service downtimes
+my $process_service_downtimes = 1;
+
 # The status.dat written by icinga 
 my $status = "/var/lib/icinga/status.dat";
 
@@ -22,8 +28,10 @@ my $icalendar = "/var/www/downtimes.ics";
 # ###################
 
 # do not change anything down here
-my $inhost = 0;
-my $inservice = 0;
+my $debug = 0;
+my $insection = 0;
+my $inhostdowntime = 0;
+my $inservicedowntime = 0;
 my %info = ();
 
 open(ICAL, ">$icalendar");
@@ -38,30 +46,34 @@ while(my $line = <STATUS>) {
 	next unless $line; # ignore empty lines
 	if( $line =~ /^hostdowntime/ ) { 
 		# we are in a hostdowmtime section
-		$inhost = 1;
+		$insection = 1;
+		$inhostdowntime = 1;
 		next;
 	}
 	if( $line =~ /^servicedowntime/ ) { 
 		# we are in a servicedowmtime section
-		$inservice = 1;
+		$insection = 1;
+		$inservicedowntime = 1;
 		next;
 	}
-	if( $line eq "}" and ($inhost or $inservice) ) {
+	if( $line eq "}" and ($inhostdowntime or $inservicedowntime) ) {
 		# section is closed - write VEVENT
 		print ICAL "BEGIN:VEVENT\n";
-		foreach my $key (keys %info) {
-			print "$key=$info{$key}\n";
-		}	
-		if( $inhost ) {
+		if( $debug ) {
+			foreach my $key (keys %info) {
+				print "$key=$info{$key}\n";
+			}	
+		}
+		if( $inhostdowntime ) {
 			# host specific
 			print ICAL "SUMMARY:Scheduled downtime $info{'host_name'}\n";
-			$inhost = 0;
-		} else { 
+			$inhostdowntime = 0;
+		} elsif( $inservicedowntime ) { 
 			# service specific
 			print ICAL "SUMMARY:Scheduled downtime $info{'service_description'} on $info{'host_name'}\n";
-			$inservice = 0;
+			$inservicedowntime = 0;
 
-		}
+		} 
 		# generic rest for section
 		print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($info{'start_time'}))."\n";
 		print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime($info{'end_time'}))."\n";
@@ -71,9 +83,10 @@ while(my $line = <STATUS>) {
 
 		# clean stored data for section
 		%info = ();
+		$insection = 0;
 		next;
 	}
-	if( $inhost || $inservice ) {
+	if( $insection ) {
 		# store data if in section
 		my ($key,$value) = split '=',$line;
 		$info{$key} = $value;
