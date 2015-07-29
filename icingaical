@@ -1,0 +1,62 @@
+#!/usr/bin/perl -w
+#
+# Reads downtimes from a nagios status.dat and creates an ical file out of it
+#
+# Written by Darko Krizic <darko.krizic@prodyna.com>
+
+use strict;
+use POSIX;
+
+my $status = "/var/lib/icinga/status.dat";
+my $icalendar = "/var/www/downtimes.ics";
+
+my $inhost = 0;
+my $inservice = 0;
+my %info = ();
+
+open(ICAL, ">$icalendar");
+print ICAL "BEGIN:VCALENDAR\n";
+print ICAL "VERSION:2.0\n";
+print ICAL "PRODID:-//hacksw/handcal//NONSGML v1.0//EN\n";
+open(STATUS,"<$status");
+while(my $line = <STATUS>) {
+	chomp $line;
+	$line =~ s/^\s+//;
+	$line =~ s/\s+$//;
+	next unless $line;
+	if( $line =~ /^hostdowntime/ ) {
+		$inhost = 1;
+		next;
+	}
+	if( $line =~ /^servicedowntime/ ) {
+		$inservice = 1;
+		next;
+	}
+	if( $line eq "}" and ($inhost or $inservice) ) {
+		print ICAL "BEGIN:VEVENT\n";
+		#foreach my $key (keys %info) {
+		#	print "$key=$info{$key}\n";
+		#}	
+		if( $inhost ) {
+			print ICAL "SUMMARY:Downtime host $info{'host_name'}\n";
+			$inhost = 0;
+		} else { 
+			print ICAL "SUMMARY:Downtime $info{'service_description'} on $info{'host_name'}\n";
+			$inservice = 0;
+
+		}
+		print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($info{'start_time'}))."\n";
+		print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime($info{'end_time'}))."\n";
+		print ICAL "DESCRIPTION:$info{'comment'}\n";
+		print ICAL "END:VEVENT\n";
+		%info = ();
+		next;
+	}
+	if( $inhost || $inservice ) {
+		my ($key,$value) = split '=',$line;
+		$info{$key} = $value;
+	}
+}
+close(STATUS);
+print ICAL "END:VCALENDAR\n";
+close(ICAL);
