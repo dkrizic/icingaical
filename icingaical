@@ -54,11 +54,11 @@ while(my $line = <STATUS>) {
 		}	
 		if( $inhost ) {
 			# host specific
-			print ICAL "SUMMARY:Downtime host $info{'host_name'}\n";
+			print ICAL "SUMMARY:Scheduled downtime $info{'host_name'}\n";
 			$inhost = 0;
 		} else { 
 			# service specific
-			print ICAL "SUMMARY:Downtime $info{'service_description'} on $info{'host_name'}\n";
+			print ICAL "SUMMARY:Scheduled downtime $info{'service_description'} on $info{'host_name'}\n";
 			$inservice = 0;
 
 		}
