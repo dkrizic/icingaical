@@ -43,8 +43,8 @@ sub host_down($) {
 	print ICAL "BEGIN:VEVENT\n";
 	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'last_state_change'}))."\n";
 	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime(time() + 3600))."\n"; # now + 1h
-	print ICAL "DESCRIPTION:$$info{'plugin_output'}\n";
-	print ICAL "SUMMARY:HD: $$info{'host_name'} down\n";
+	print ICAL "SUMMARY:HD: $$info{'host_name'}\n";
+	print ICAL "DESCRIPTION: Host down: $$info{'plugin_output'}\n";
 	print ICAL "END:VEVENT\n";
 }
 
@@ -55,8 +55,8 @@ sub service_down($) {
 	print ICAL "BEGIN:VEVENT\n";
 	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'last_state_change'}))."\n";
 	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime(time() + 3600))."\n"; # now + 1h
-	print ICAL "SUMMARY:SD: $$info{'service_description'} on $$info{'host_name'} down\n";
-	print ICAL "DESCRIPTION:$$info{'plugin_output'}\n";
+	printf ICAL "SUMMARY:SD%s: $$info{'service_description'} on $$info{'host_name'} down\n", $$info{'problem_has_been_acknowledged'} == 1 ? "/ACK" : "";
+	printf ICAL "DESCRIPTION:Service down: $$info{'plugin_output'}%s\n", $$info{'problem_has_been_acknowledged'} == 1 ? ", acknowledged" : "";
 	print ICAL "END:VEVENT\n";
 }
 
@@ -78,13 +78,13 @@ sub service_downtime($) {
 	print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'start_time'}))."\n";
 	print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime($$info{'end_time'}))."\n";
 	print ICAL "SUMMARY:SSD: $$info{'service_description'}\n";
-	print ICAL "DESCRIPTION:Service Scheduled Downtime$$info{'comment'} ($$info{'author'})\n";
+	print ICAL "DESCRIPTION:Service Scheduled Downtime: $$info{'comment'} ($$info{'author'})\n";
 	print ICAL "END:VEVENT\n";
 }
 
 # do not change anything down here
 my %info = ();
-my $debug = 0;
+my $debug = 1;
 my $insection = 0;
 my $type;
 
