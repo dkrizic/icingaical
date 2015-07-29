@@ -7,9 +7,12 @@
 use strict;
 use POSIX;
 
+# configuration start
 my $status = "/var/lib/icinga/status.dat";
 my $icalendar = "/var/www/downtimes.ics";
+# configuration end
 
+# do not change anything down here
 my $inhost = 0;
 my $inservice = 0;
 my %info = ();
@@ -21,39 +24,48 @@ print ICAL "PRODID:-//hacksw/handcal//NONSGML v1.0//EN\n";
 open(STATUS,"<$status");
 while(my $line = <STATUS>) {
 	chomp $line;
-	$line =~ s/^\s+//;
-	$line =~ s/\s+$//;
-	next unless $line;
-	if( $line =~ /^hostdowntime/ ) {
+	$line =~ s/^\s+//; # trim start
+	$line =~ s/\s+$//; # trom end
+	next unless $line; # ignore empty lines
+	if( $line =~ /^hostdowntime/ ) { 
+		# we are in a hostdowmtime section
 		$inhost = 1;
 		next;
 	}
-	if( $line =~ /^servicedowntime/ ) {
+	if( $line =~ /^servicedowntime/ ) { 
+		# we are in a servicedowmtime section
 		$inservice = 1;
 		next;
 	}
 	if( $line eq "}" and ($inhost or $inservice) ) {
+		# section is closed - write VEVENT
 		print ICAL "BEGIN:VEVENT\n";
 		foreach my $key (keys %info) {
 			print "$key=$info{$key}\n";
 		}	
 		if( $inhost ) {
+			# host specific
 			print ICAL "SUMMARY:Downtime host $info{'host_name'}\n";
 			$inhost = 0;
 		} else { 
+			# service specific
 			print ICAL "SUMMARY:Downtime $info{'service_description'} on $info{'host_name'}\n";
 			$inservice = 0;
 
 		}
+		# generic rest for section
 		print ICAL "DTSTART:".strftime("%Y%m%dT%H%M%SZ",gmtime($info{'start_time'}))."\n";
 		print ICAL "DTEND:".strftime("%Y%m%dT%H%M%SZ",gmtime($info{'end_time'}))."\n";
 		print ICAL "DESCRIPTION:$info{'comment'} ($info{'author'})\n";
 		print ICAL "ORGANIZER: $info{'author'}\n";
 		print ICAL "END:VEVENT\n";
+
+		# clean stored data for section
 		%info = ();
 		next;
 	}
 	if( $inhost || $inservice ) {
+		# store data if in section
 		my ($key,$value) = split '=',$line;
 		$info{$key} = $value;
 	}
