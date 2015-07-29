@@ -7,10 +7,19 @@
 use strict;
 use POSIX;
 
+# ###################
 # configuration start
+# ###################
+
+# The status.dat written by icinga 
 my $status = "/var/lib/icinga/status.dat";
+
+# The ics file to be written
 my $icalendar = "/var/www/downtimes.ics";
+
+# ###################
 # configuration end
+# ###################
 
 # do not change anything down here
 my $inhost = 0;
