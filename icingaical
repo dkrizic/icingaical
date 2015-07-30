@@ -84,7 +84,7 @@ sub service_downtime($) {
 
 # do not change anything down here
 my %info = ();
-my $debug = 1;
+my $debug = 0;
 my $insection = 0;
 my $type;
 
