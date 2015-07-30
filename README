@@ -1,0 +1,7 @@
+The basic idea is, that users can subscribe an iCalendar file 
+with scheduled Icinga downtimes.
+
+This script reads the status.dat that is written by Icinga and
+extracts the scheduled downtimes for services and hosts. It writes
+down a .ics file in the iCalendar format. This file can put on a 
+HTTP server and subscribed with webcal://<server>/downtimes.ics
